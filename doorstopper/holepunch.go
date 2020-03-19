@@ -23,10 +23,11 @@ func (doorStopper *DoorStopper) keeper(sock *net.UDPConn, stop <-chan bool) {
 		raddr, err := net.ResolveUDPAddr(doorStopper.Protocol,
 			fmt.Sprintf("%s:%d", doorStopper.ExposedHost, doorStopper.ExposedPort))
 		if err == nil {
-			sock.WriteToUDP([]byte{0}, raddr)
-		} else {
-			glog.Errorf("Unable to resolve host: %s:%d, %#v",
-				doorStopper.ExposedHost, doorStopper.ExposedPort, err)
+			_, err = sock.WriteToUDP([]byte{0}, raddr)
+		}
+		if err != nil {
+			glog.Errorf("Unable to resolve host: %s:%d, %v",
+				doorStopper.ExposedHost, doorStopper.ExposedPort, err.Error())
 		}
 		select {
 		case <-time.After(doorStopper.Interval):
@@ -100,7 +101,7 @@ func (doorStopper *DoorStopper) Penetrate() (keeper io.Closer, err error) {
 	stop := make(chan bool)
 
 	glog.V(2).Info("Create UDP socket for Hole Keeper")
-	sock, err = net.DialUDP(doorStopper.Protocol, laddr, raddr)
+	sock, err = net.ListenUDP(doorStopper.Protocol, laddr)
 	if err != nil {
 		return
 	}
