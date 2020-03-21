@@ -11,6 +11,6 @@ type DoorStopper struct {
 	ExposedPort int
 	LocalHost   string
 	LocalPort   int
-	Iptables    string
+	Iptables    []string
 	Interval    time.Duration
 }

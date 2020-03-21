@@ -23,9 +23,9 @@ type Runner interface {
 
 type RunnerFactory func(args ...string) Runner
 
-func createRunnerFactory(cmd string) RunnerFactory {
+func createRunnerFactory(cmd []string) RunnerFactory {
 	return func(args ...string) Runner {
-		return exec.Command(cmd, args...)
+		return exec.Command(cmd[0], append(cmd[1:], args...)...)
 	}
 }
 

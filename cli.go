@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/golang/glog"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/gwangyi/doorstopper/doorstopper"
 )
 
@@ -27,9 +27,7 @@ var apiPort = flag.Int("api-port", 15409, "Port number for API server")
 
 type EndpointInfo struct {
 	Status   string
-	Protocol string
-	Host     string
-	Port     int
+	Endpoint doorstopper.EndpointInfo
 }
 
 type ErrorInfo struct {
@@ -65,36 +63,28 @@ func main() {
 		protocol = "udp6"
 	}
 
-	stopper := doorstopper.DoorStopper{
+	stopper, err := doorstopper.CreateService(&doorstopper.DoorStopper{
 		Protocol:    protocol,
 		StopperPort: *stopperPort,
 		StunHost:    *stunHost,
 		StunPort:    *stunPort,
 		LocalHost:   *localHost,
 		LocalPort:   *localPort,
-		Iptables:    *iptables,
+		Iptables:    []string{*iptables},
 		Interval:    *interval,
-	}
+	})
 
-	if err := stopper.RemoveRedirect(); err != nil {
-		glog.Fatal(err)
-		return
-	}
-
-	keeper, err := stopper.Penetrate()
 	if err != nil {
 		glog.Fatal(err)
 		return
 	}
 
-	if err := stopper.AddRedirect(); err != nil {
+	if err := stopper.Start(); err != nil {
 		glog.Fatal(err)
 		return
 	}
 
-	defer func() {
-		keeper.Close()
-	}()
+	defer stopper.Stop()
 
 	quit := make(chan bool, 1)
 
@@ -114,27 +104,7 @@ func main() {
 
 		switch r.Method {
 		case http.MethodPut:
-			err = keeper.Close()
-			if err != nil {
-				glog.Error(err)
-				handleError(w, err)
-				return
-			}
-
-			if err = stopper.RemoveRedirect(); err != nil {
-				glog.Error(err)
-				handleError(w, err)
-				return
-			}
-
-			keeper, err = stopper.Penetrate()
-			if err != nil {
-				glog.Error(err)
-				handleError(w, err)
-				return
-			}
-
-			if err = stopper.AddRedirect(); err != nil {
+			if err := stopper.Start(); err != nil {
 				glog.Error(err)
 				handleError(w, err)
 				return
@@ -142,9 +112,7 @@ func main() {
 		}
 		msg, err := json.Marshal(EndpointInfo{
 			Status:   "ok",
-			Protocol: stopper.Protocol,
-			Host:     stopper.ExposedHost,
-			Port:     stopper.ExposedPort,
+			Endpoint: stopper.Endpoint(),
 		})
 		if err != nil {
 			handleError(w, err)
